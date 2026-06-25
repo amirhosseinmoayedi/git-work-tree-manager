@@ -1,0 +1,18 @@
+[project]
+name = "worktree-manager"
+version = "0.1.0"
+description = "Generic Git worktree and per-worktree environment manager for agent workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+]
+
+[project.scripts]
+wtm = "worktree_manager.cli:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
