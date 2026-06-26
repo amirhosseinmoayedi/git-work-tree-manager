@@ -1,4 +1,4 @@
-from worktree_manager.templates import slug, db, port_hash, render
+from worktree_manager.templating import slug, db, port_hash, render
 
 
 def test_filters_and_dotted_rendering():

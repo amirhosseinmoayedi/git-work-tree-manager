@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from worktree_manager import registry
+from worktree_manager import state as registry
 
 
 COLUMNS = ("id", "repo", "branch", "path", "task", "agent", "status", "resources", "created_at", "updated_at")
@@ -87,7 +87,7 @@ def test_registry_uses_local_turso_adapter(monkeypatch, tmp_path):
         {
             "id": "smoke-codex-01",
             "repo": "/repo",
-            "branch": "agent/smoke-codex-01",
+            "branch": "chore/smoke-codex-01",
             "path": "/repo/.worktrees/smoke-codex-01",
             "task": "smoke",
             "agent": "codex",

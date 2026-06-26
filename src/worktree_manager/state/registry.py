@@ -78,14 +78,15 @@ class Registry:
 
     def used_ports(self) -> set[int]:
         ports = set()
-        for rec in self.list():
-            def walk(value):
-                if isinstance(value, dict):
-                    for child in value.values():
-                        walk(child)
-                elif isinstance(value, int):
-                    ports.add(value)
 
+        def walk(value):
+            if isinstance(value, dict):
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, int):
+                ports.add(value)
+
+        for rec in self.list():
             walk(rec.get("resources", {}))
         return ports
 
