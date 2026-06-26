@@ -18,13 +18,13 @@ Tests live in `tests/` and should mirror behavior, for example `tests/test_confi
 ## Build, Test, And Development Commands
 - `uv sync`: install runtime and development dependencies from `pyproject.toml` and `uv.lock`.
 - `.venv/bin/python -m pytest -q`: run the local test suite.
-- `uv tool install --editable /Users/amirhossein/Documents/git-work-tree-manager --force`: install `wtm` for normal use.
+- `uv tool install --editable . --force`: install `wtm` for normal use from the checkout root.
 - `wtm --help` and `wtm create --help`: verify the installed CLI.
 
 Use `WTM_REGISTRY=/tmp/wtm-test.db` for isolated registry tests. Shared worktrees default to `~/projects/.worktrees`; prefer `~/.config/worktree-manager/config.yml` over repeated shell exports.
 
 ## Coding Style & Naming Conventions
-Use Python 3.10+ with 4-space indentation. Keep modules focused and avoid project-specific behavior in the manager. Billing, Django, and other target-repo setup belongs in that repo's `.worktree.yml` or hooks.
+Use Python 3.10+ with 4-space indentation. Keep modules focused and avoid project-specific behavior in the manager. Target-repo setup belongs in that repo's `.worktree.yml`, scripts, hooks, or contributor guide.
 
 Use snake_case for functions, variables, and module names. CLI commands should stay short and action-oriented. Branch names should default to conventional-style prefixes, for example `chore/task-codex-01` or `fix/task-codex-01`.
 
