@@ -1,50 +1,103 @@
 from __future__ import annotations
 
-import json, os, sqlite3
+import json
+import os
 from pathlib import Path
 from typing import Any
 
 
+UPDATE_FIELDS = {"repo", "branch", "path", "task", "agent", "status", "resources"}
+
+
 def default_db() -> Path:
-    return Path(os.environ.get("WTM_REGISTRY", Path.home()/".local/share/worktree-manager/registry.sqlite"))
+    return Path(os.environ.get("WTM_REGISTRY", Path.home() / ".local/share/worktree-manager/registry.db"))
+
+
+def connect_local_db(path: Path):
+    try:
+        import turso
+    except ImportError as exc:
+        raise RuntimeError("pyturso is required for the local Turso registry. Install with `pip install pyturso`.") from exc
+    return turso.connect(str(path))
+
 
 class Registry:
     def __init__(self, path: Path | None = None):
-        self.path = path or default_db(); self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.path); self.conn.row_factory = sqlite3.Row; self.init()
+        self.path = path or default_db()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = connect_local_db(self.path)
+        self.init()
+
     def init(self):
-        self.conn.execute("""create table if not exists worktrees(
+        self.conn.execute(
+            """create table if not exists worktrees(
             id text primary key, repo text not null, branch text not null, path text not null,
             task text, agent text, status text not null, resources text not null default '{}',
-            created_at text not null default current_timestamp, updated_at text not null default current_timestamp)""")
+            created_at text not null default current_timestamp, updated_at text not null default current_timestamp)"""
+        )
         self.conn.commit()
+
     def add(self, rec: dict[str, Any]):
-        r = dict(rec); r["resources"] = json.dumps(r.get("resources", {}))
-        self.conn.execute("insert into worktrees(id,repo,branch,path,task,agent,status,resources) values(:id,:repo,:branch,:path,:task,:agent,:status,:resources)", r); self.conn.commit()
+        r = dict(rec)
+        r["resources"] = json.dumps(r.get("resources", {}))
+        self.conn.execute(
+            "insert into worktrees(id,repo,branch,path,task,agent,status,resources) values(?,?,?,?,?,?,?,?)",
+            (r["id"], r["repo"], r["branch"], r["path"], r.get("task"), r.get("agent"), r["status"], r["resources"]),
+        )
+        self.conn.commit()
+
     def update(self, wid: str, **fields: Any):
-        if "resources" in fields: fields["resources"] = json.dumps(fields["resources"])
-        fields["updated_at"] = "CURRENT_TIMESTAMP"
-        sets=[]; vals={"id":wid}
-        for k,v in fields.items():
-            if v == "CURRENT_TIMESTAMP": sets.append(f"{k}=CURRENT_TIMESTAMP")
-            else: sets.append(f"{k}=:{k}"); vals[k]=v
-        self.conn.execute(f"update worktrees set {', '.join(sets)} where id=:id", vals); self.conn.commit()
+        if "resources" in fields:
+            fields["resources"] = json.dumps(fields["resources"])
+        sets = []
+        vals = []
+        for key, value in fields.items():
+            if key not in UPDATE_FIELDS:
+                raise ValueError(f"cannot update registry field: {key}")
+            sets.append(f"{key}=?")
+            vals.append(value)
+        sets.append("updated_at=current_timestamp")
+        self.conn.execute(f"update worktrees set {', '.join(sets)} where id=?", (*vals, wid))
+        self.conn.commit()
+
     def get(self, wid: str):
-        row = self.conn.execute("select * from worktrees where id=?", (wid,)).fetchone(); return self._row(row)
+        cur = self.conn.execute("select * from worktrees where id=?", (wid,))
+        row = cur.fetchone()
+        return self._row(row, cur.description)
+
     def list(self):
-        return [self._row(r) for r in self.conn.execute("select * from worktrees order by created_at desc")]
+        cur = self.conn.execute("select * from worktrees order by created_at desc")
+        return [self._row(row, cur.description) for row in cur.fetchall()]
+
     def remove(self, wid: str):
-        self.conn.execute("delete from worktrees where id=?", (wid,)); self.conn.commit()
-    def exists_id(self, wid: str) -> bool: return self.get(wid) is not None
+        self.conn.execute("delete from worktrees where id=?", (wid,))
+        self.conn.commit()
+
+    def exists_id(self, wid: str) -> bool:
+        return self.get(wid) is not None
+
     def used_ports(self) -> set[int]:
-        ports=set()
-        for r in self.list():
-            def walk(x):
-                if isinstance(x, dict):
-                    for v in x.values(): walk(v)
-                elif isinstance(x, int): ports.add(x)
-            walk(r.get("resources", {}))
+        ports = set()
+        for rec in self.list():
+            def walk(value):
+                if isinstance(value, dict):
+                    for child in value.values():
+                        walk(child)
+                elif isinstance(value, int):
+                    ports.add(value)
+
+            walk(rec.get("resources", {}))
         return ports
-    def _row(self, row):
-        if row is None: return None
-        d=dict(row); d["resources"]=json.loads(d.get("resources") or "{}"); return d
+
+    def _row(self, row, description=None):
+        if row is None:
+            return None
+        if isinstance(row, dict):
+            data = dict(row)
+        elif hasattr(row, "keys"):
+            data = {key: row[key] for key in row.keys()}
+        else:
+            columns = [column[0] for column in description or ()]
+            data = dict(zip(columns, row))
+        data["resources"] = json.loads(data.get("resources") or "{}")
+        return data
